@@ -21,22 +21,26 @@ export default function LoginForm() {
     });
 
     if (authError) {
-      setError('Error: ' + authError.message + ' (code: ' + authError.status + ')');
+      setError('Error: ' + authError.message);
       setLoading(false);
       return;
     }
 
-    const { data: adminData } = await supabase
-      .from('users_admin')
-      .select('rol')
-      .eq('id', data.user.id)
-      .single();
+    // Check admin status with retries
+    let isAdmin = false;
+    for (let i = 0; i < 3; i++) {
+      const { data: adminData, error: adminError } = await supabase
+        .from('users_admin')
+        .select('rol')
+        .eq('id', data.user.id)
+        .maybeSingle();
 
-    if (adminData) {
-      router.push('/dashboard');
-    } else {
-      router.push('/checkin');
+      if (adminData) { isAdmin = true; break; }
+      if (!adminError) break;
+      await new Promise(r => setTimeout(r, 500));
     }
+
+    router.push(isAdmin ? '/dashboard' : '/checkin');
   }
 
   return (
