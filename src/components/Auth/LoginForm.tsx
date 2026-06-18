@@ -26,21 +26,8 @@ export default function LoginForm() {
       return;
     }
 
-    // Check admin status with retries
-    let isAdmin = false;
-    for (let i = 0; i < 3; i++) {
-      const { data: adminData, error: adminError } = await supabase
-        .from('users_admin')
-        .select('rol')
-        .eq('id', data.user.id)
-        .maybeSingle();
-
-      if (adminData) { isAdmin = true; break; }
-      if (!adminError) break;
-      await new Promise(r => setTimeout(r, 500));
-    }
-
-    router.push(isAdmin ? '/dashboard' : '/checkin');
+    const role = data.user.app_metadata?.role;
+    router.push(role === 'admin' ? '/dashboard' : '/checkin');
   }
 
   return (

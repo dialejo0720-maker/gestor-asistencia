@@ -11,12 +11,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { router.push('/login'); return; }
-      supabase.from('users_admin').select('rol').eq('id', session.user.id).maybeSingle()
-        .then(({ data, error }) => {
-          if (error) { console.error('users_admin error:', error); }
-          if (!data) { router.push('/checkin'); return; }
-          setReady(true);
-        });
+      const role = session.user.app_metadata?.role;
+      if (role !== 'admin') { router.push('/checkin'); return; }
+      setReady(true);
     });
   }, [router]);
 
