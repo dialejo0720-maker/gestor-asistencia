@@ -16,12 +16,12 @@ export default function EmployeesPage() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [msg, setMsg] = useState('');
-  const [inviteLink, setInviteLink] = useState('');
 
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('employees').select('*').order('nombre');
-    setEmployees((data || []) as Employee[]);
+    const res = await fetch('/api/employees');
+    const json = await res.json();
+    setEmployees((json.employees || []) as Employee[]);
     setLoading(false);
   }, []);
 
@@ -32,7 +32,6 @@ export default function EmployeesPage() {
     setEditingId(null);
     setShowForm(true);
     setMsg('');
-    setInviteLink('');
   }
 
   function openEdit(emp: Employee) {
@@ -40,55 +39,47 @@ export default function EmployeesPage() {
     setEditingId(emp.id);
     setShowForm(true);
     setMsg('');
-    setInviteLink('');
   }
 
   async function handleSave() {
     if (!form.nombre || !form.email || !form.store) { setMsg('Nombre, email y tienda son obligatorios'); return; }
     setSaving(true);
     setMsg('');
-    setInviteLink('');
 
     if (editingId) {
-      const { error } = await supabase.from('employees').update({
-        nombre: form.nombre, email: form.email, telefono: form.telefono,
-        store: form.store, rol: form.rol, salario_diario: form.salario_diario, activo: form.activo,
-        updated_at: new Date().toISOString(),
-      }).eq('id', editingId);
-      if (error) setMsg('Error: ' + error.message);
+      const res = await fetch(`/api/employees/${editingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const json = await res.json();
+      if (json.error) setMsg('Error: ' + json.error);
       else { setMsg('✓ Empleado actualizado'); fetchEmployees(); }
     } else {
-      // 1. Create employee record
-      const { data: emp, error: empError } = await supabase.from('employees').insert({
-        nombre: form.nombre, email: form.email, telefono: form.telefono,
-        store: form.store, rol: form.rol, salario_diario: form.salario_diario, activo: form.activo,
-      }).select().single();
-
-      if (empError) { setMsg('Error: ' + empError.message); setSaving(false); return; }
-
-      // 2. Send magic link invite (uses anon key - limited, user gets email)
-      const { error: inviteError } = await supabase.auth.signInWithOtp({
-        email: form.email,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      const res = await fetch('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
       });
-
-      if (inviteError) {
-        setMsg(`✓ Empleado creado. No se pudo enviar invite: ${inviteError.message}`);
-      } else {
-        setMsg('✓ Empleado creado y enlace de acceso enviado a su email');
-      }
+      const json = await res.json();
+      if (json.error) { setMsg('Error: ' + json.error); setSaving(false); return; }
+      setMsg('✓ Empleado creado exitosamente');
       fetchEmployees();
     }
     setSaving(false);
   }
 
   async function toggleActivo(emp: Employee) {
-    await supabase.from('employees').update({ activo: !emp.activo }).eq('id', emp.id);
+    await fetch(`/api/employees/${emp.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ activo: !emp.activo }),
+    });
     fetchEmployees();
   }
 
   function shareWhatsApp(emp: Employee) {
-    const text = `Hola ${emp.nombre.split(' ')[0]} 👋\n\nTu acceso al sistema de asistencia:\n🔗 ${window.location.origin}/checkin\n\n1. Abre el enlace\n2. Ingresa tu email: ${emp.email}\n3. Revisa tu correo y haz clic en el enlace de acceso\n\n📍 Recuerda marcar tu entrada y salida diariamente.`;
+    const text = `Hola ${emp.nombre.split(' ')[0]} 👋\n\nAcceso al sistema de asistencia:\n🔗 ${window.location.origin}/checkin\n\n1. Abre el enlace\n2. Ingresa tu email: ${emp.email}\n3. Marca tu entrada y salida diariamente\n\n📍 Tienda: ${emp.store}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   }
 
@@ -107,12 +98,11 @@ export default function EmployeesPage() {
             <h1 className="text-2xl font-bold text-gray-900">Empleados</h1>
             <p className="text-gray-500 text-sm mt-0.5">{employees.filter(e => e.activo).length} activos · {employees.length} total</p>
           </div>
-          <button onClick={openNew} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition">
+          <button onClick={openNew} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition">
             + Agregar empleado
           </button>
         </div>
 
-        {/* Store stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {stores.slice(0, 4).map(s => (
             <div key={s} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
@@ -126,7 +116,7 @@ export default function EmployeesPage() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100">
           <div className="p-4 border-b border-gray-100">
             <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar empleado..." className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+              placeholder="Buscar empleado..." className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 outline-none" />
           </div>
           {loading ? <div className="text-center py-12 text-gray-400">Cargando...</div> : (
             <div className="overflow-x-auto">
@@ -148,12 +138,12 @@ export default function EmployeesPage() {
                           <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">{emp.nombre.charAt(0)}</div>
                           <div>
                             <div className="font-medium text-gray-900">{emp.nombre}</div>
-                            <div className="text-xs text-gray-400">{emp.email}</div>
+                            <div className="text-xs text-gray-500">{emp.email}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{emp.store}</td>
-                      <td className="px-4 py-3"><span className="capitalize text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">{emp.rol}</span></td>
+                      <td className="px-4 py-3 text-gray-700">{emp.store}</td>
+                      <td className="px-4 py-3"><span className="capitalize text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">{emp.rol}</span></td>
                       <td className="px-4 py-3 text-center">
                         <button onClick={() => toggleActivo(emp)}
                           className={`text-xs px-2.5 py-1 rounded-full font-medium ${emp.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
@@ -179,13 +169,12 @@ export default function EmployeesPage() {
           )}
         </div>
 
-        {/* Info card */}
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <h3 className="font-semibold text-blue-800 text-sm mb-1">¿Cómo acceden los empleados?</h3>
           <p className="text-blue-700 text-xs">
-            1. Al crear un empleado se le envía un enlace a su email para registrarse.<br/>
-            2. También puedes usar el botón <strong>"Enviar acceso"</strong> por WhatsApp con el link de check-in.<br/>
-            3. Los empleados entran a: <strong>{typeof window !== 'undefined' ? window.location.origin : ''}/checkin</strong>
+            1. Crea el empleado aquí con su email.<br/>
+            2. Usa <strong>"Enviar acceso"</strong> por WhatsApp con el link directo.<br/>
+            3. El empleado entra a <strong>/checkin</strong>, escribe su email y ya puede marcar entrada/salida.
           </p>
         </div>
       </div>
@@ -194,52 +183,51 @@ export default function EmployeesPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
             <div className="p-5 border-b flex justify-between items-center">
-              <h2 className="font-bold text-lg">{editingId ? 'Editar empleado' : 'Nuevo empleado'}</h2>
+              <h2 className="font-bold text-lg text-gray-900">{editingId ? 'Editar empleado' : 'Nuevo empleado'}</h2>
               <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
             </div>
             <div className="p-5 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <label className="text-xs font-medium text-gray-600 block mb-1">Nombre completo *</label>
+                  <label className="text-sm font-semibold text-gray-700 block mb-1.5">Nombre completo *</label>
                   <input value={form.nombre} onChange={e => setForm({...form, nombre: e.target.value})}
-                    className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Juan García" />
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Juan García" />
                 </div>
                 <div className="col-span-2">
-                  <label className="text-xs font-medium text-gray-600 block mb-1">Email *</label>
+                  <label className="text-sm font-semibold text-gray-700 block mb-1.5">Email *</label>
                   <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})}
-                    className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="juan@empresa.com" />
-                  {!editingId && <p className="text-xs text-gray-400 mt-1">Se enviará un enlace de acceso a este email</p>}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="juan@empresa.com" />
+                  <p className="text-xs text-gray-500 mt-1">El empleado usará este email para entrar al check-in</p>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-600 block mb-1">Tienda / Punto de venta *</label>
+                  <label className="text-sm font-semibold text-gray-700 block mb-1.5">Tienda *</label>
                   <input value={form.store} onChange={e => setForm({...form, store: e.target.value})}
-                    className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Centro, Norte..." />
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Centro, Norte..." />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-600 block mb-1">Teléfono</label>
+                  <label className="text-sm font-semibold text-gray-700 block mb-1.5">Teléfono</label>
                   <input value={form.telefono} onChange={e => setForm({...form, telefono: e.target.value})}
-                    className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="300 000 0000" />
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="300 000 0000" />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-600 block mb-1">Rol</label>
+                  <label className="text-sm font-semibold text-gray-700 block mb-1.5">Rol</label>
                   <select value={form.rol} onChange={e => setForm({...form, rol: e.target.value})}
-                    className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none capitalize">
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none capitalize">
                     {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-600 block mb-1">Salario diario ($)</label>
+                  <label className="text-sm font-semibold text-gray-700 block mb-1.5">Salario diario ($)</label>
                   <input type="number" value={form.salario_diario} onChange={e => setForm({...form, salario_diario: Number(e.target.value)})}
-                    className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
               </div>
-              {msg && <div className={`text-sm px-4 py-3 rounded-lg ${msg.includes('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>{msg}</div>}
-              {inviteLink && <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 break-all">{inviteLink}</div>}
+              {msg && <div className={`text-sm px-4 py-3 rounded-lg ${msg.includes('Error') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>{msg}</div>}
             </div>
             <div className="p-5 border-t flex gap-3 justify-end">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancelar</button>
+              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 font-medium">Cancelar</button>
               <button onClick={handleSave} disabled={saving}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
+                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition">
                 {saving ? 'Guardando...' : editingId ? 'Actualizar' : 'Crear empleado'}
               </button>
             </div>
