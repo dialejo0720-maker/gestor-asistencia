@@ -1,0 +1,36 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
+import Sidebar from './Sidebar';
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) { router.push('/login'); return; }
+      supabase.from('users_admin').select('rol').eq('id', session.user.id).single()
+        .then(({ data }) => {
+          if (!data) { router.push('/checkin'); return; }
+          setReady(true);
+        });
+    });
+  }, [router]);
+
+  if (!ready) return (
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="w-10 h-10 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+    </div>
+  );
+
+  return (
+    <div className="flex min-h-screen bg-gray-50">
+      <Sidebar />
+      <main className="flex-1 ml-60 p-6 min-h-screen">
+        {children}
+      </main>
+    </div>
+  );
+}
