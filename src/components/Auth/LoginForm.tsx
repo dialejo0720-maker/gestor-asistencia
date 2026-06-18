@@ -21,7 +21,7 @@ export default function LoginForm() {
     });
 
     if (authError) {
-      setError('Email o contraseña incorrectos');
+      setError('Error: ' + authError.message + ' (code: ' + authError.status + ')');
       setLoading(false);
       return;
     }
