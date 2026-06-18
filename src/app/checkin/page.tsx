@@ -1,6 +1,5 @@
 'use client';
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { Employee } from '@/lib/types';
 import CheckInOut from '@/components/Employee/CheckInOut';
 
@@ -14,17 +13,13 @@ export default function CheckInPage() {
     if (!email.trim()) return;
     setLoading(true);
     setError('');
-    const { data, error: err } = await supabase
-      .from('employees')
-      .select('*')
-      .eq('email', email.trim().toLowerCase())
-      .eq('activo', true)
-      .single();
+    const res = await fetch(`/api/checkin?email=${encodeURIComponent(email.trim().toLowerCase())}`);
+    const json = await res.json();
 
-    if (err || !data) {
+    if (!res.ok || json.error || !json.employee) {
       setError('No se encontró ningún empleado con ese email. Verifica con tu administrador.');
     } else {
-      setEmployee(data as Employee);
+      setEmployee(json.employee as Employee);
     }
     setLoading(false);
   }
