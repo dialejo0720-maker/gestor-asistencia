@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
   { href: '/employees', label: 'Empleados', icon: '👥' },
+  { href: '/sales', label: 'Ventas Diarias', icon: '💵' },
   { href: '/schedules', label: 'Horarios', icon: '📅' },
   { href: '/payroll', label: 'Nómina', icon: '💰' },
 ];

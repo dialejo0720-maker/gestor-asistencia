@@ -17,6 +17,9 @@ export interface Timesheet {
   check_in_time?: string;
   check_out_time?: string;
   ubicacion_texto?: string;
+  ubicacion_lat?: number;
+  ubicacion_lng?: number;
+  ubicacion_direccion?: string;
   notas?: string;
   created_at: string;
 }
@@ -29,6 +32,16 @@ export interface Schedule {
   hora_salida: string;
   es_festivo: boolean;
   es_fuera_horario: boolean;
+}
+
+export interface Sale {
+  id: string;
+  employee_id: string;
+  fecha: string;
+  monto: number;
+  descripcion?: string;
+  store?: string;
+  created_at: string;
 }
 
 export interface PayrollReport {
@@ -57,12 +70,4 @@ export interface DashboardData {
   dias_trabajados: number;
   dias_ausentes: number;
   porcentaje_asistencia: number;
-}
-
-export interface MonthlyCalendarDay {
-  fecha: string;
-  tipo: 'presente' | 'ausente' | 'descanso' | 'festivo';
-  check_in?: string;
-  check_out?: string;
-  horas?: number;
 }
