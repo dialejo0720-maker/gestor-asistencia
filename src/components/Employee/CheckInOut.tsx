@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { supabase } from '@/lib/supabase';
 import { Employee, Timesheet, Sale } from '@/lib/types';
 import { calculateDailyHours, formatHoras } from '@/lib/calculateHours';
 
@@ -23,8 +22,6 @@ export default function CheckInOut({ employee }: Props) {
   const [savingSale, setSavingSale] = useState(false);
   const [showSaleForm, setShowSaleForm] = useState(false);
 
-  const today = format(new Date(), 'yyyy-MM-dd');
-
   useEffect(() => {
     fetchToday();
     getLocation();
@@ -33,12 +30,12 @@ export default function CheckInOut({ employee }: Props) {
   }, []);
 
   async function fetchToday() {
-    const [{ data: ts }, { data: sales }] = await Promise.all([
-      supabase.from('timesheets').select('*').eq('employee_id', employee.id).eq('fecha', today).single(),
-      supabase.from('sales').select('*').eq('employee_id', employee.id).eq('fecha', today),
-    ]);
-    setTimesheet(ts);
-    setTodaySales((sales || []) as Sale[]);
+    const res = await fetch(`/api/checkin?email=${encodeURIComponent(employee.email)}`);
+    if (res.ok) {
+      const json = await res.json();
+      setTimesheet(json.timesheet);
+      setTodaySales(json.sales || []);
+    }
   }
 
   async function getLocation() {
@@ -64,51 +61,58 @@ export default function CheckInOut({ employee }: Props) {
   async function handleCheckIn() {
     setLoading(true);
     setMessage('');
-    const { error } = await supabase.from('timesheets').insert({
-      employee_id: employee.id,
-      fecha: today,
-      check_in_time: new Date().toISOString(),
-      ubicacion_texto: employee.store,
-      ubicacion_lat: location?.lat,
-      ubicacion_lng: location?.lng,
-      ubicacion_direccion: location?.address,
+    const res = await fetch('/api/checkin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'checkin',
+        employee_id: employee.id,
+        location: { ...location, store: employee.store },
+      }),
     });
-    if (error) setMessage('Error al registrar entrada.');
-    else { setMessage('¡Entrada registrada!'); fetchToday(); }
+    const json = await res.json();
+    if (json.error) setMessage('Error al registrar entrada: ' + json.error);
+    else { setMessage('¡Entrada registrada!'); setTimesheet(json.timesheet); }
     setLoading(false);
   }
 
   async function handleCheckOut() {
     setLoading(true);
     setMessage('');
-    const { error } = await supabase
-      .from('timesheets')
-      .update({
-        check_out_time: new Date().toISOString(),
-        ubicacion_lat: location?.lat,
-        ubicacion_lng: location?.lng,
-      })
-      .eq('employee_id', employee.id)
-      .eq('fecha', today);
-    if (error) setMessage('Error al registrar salida.');
-    else { setMessage('¡Salida registrada!'); fetchToday(); }
+    const res = await fetch('/api/checkin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'checkout',
+        employee_id: employee.id,
+        location,
+      }),
+    });
+    const json = await res.json();
+    if (json.error) setMessage('Error al registrar salida: ' + json.error);
+    else { setMessage('¡Salida registrada!'); setTimesheet(json.timesheet); }
     setLoading(false);
   }
 
   async function handleAddSale() {
     if (!saleAmount || Number(saleAmount) <= 0) return;
     setSavingSale(true);
-    await supabase.from('sales').insert({
-      employee_id: employee.id,
-      fecha: today,
-      monto: Number(saleAmount),
-      descripcion: saleDesc,
-      store: employee.store,
+    const res = await fetch('/api/checkin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'sale',
+        employee_id: employee.id,
+        sale: { monto: Number(saleAmount), descripcion: saleDesc, store: employee.store },
+      }),
     });
-    setSaleAmount('');
-    setSaleDesc('');
-    setShowSaleForm(false);
-    fetchToday();
+    const json = await res.json();
+    if (!json.error) {
+      setSaleAmount('');
+      setSaleDesc('');
+      setShowSaleForm(false);
+      await fetchToday();
+    }
     setSavingSale(false);
   }
 
@@ -125,7 +129,6 @@ export default function CheckInOut({ employee }: Props) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-blue-600 text-white px-4 pt-8 pb-14">
         <p className="text-blue-200 text-sm capitalize">
           {format(now, "EEEE d 'de' MMMM", { locale: es })}
@@ -138,7 +141,6 @@ export default function CheckInOut({ employee }: Props) {
       </div>
 
       <div className="px-4 -mt-8 space-y-4 pb-8">
-        {/* Check-in card */}
         <div className="bg-white rounded-2xl shadow-lg p-5 space-y-3">
           {message && (
             <div className={`text-center text-sm px-3 py-2 rounded-lg ${message.includes('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
@@ -146,7 +148,6 @@ export default function CheckInOut({ employee }: Props) {
             </div>
           )}
 
-          {/* Location */}
           <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
             <span>📍</span>
             <span className="truncate">
@@ -174,7 +175,6 @@ export default function CheckInOut({ employee }: Props) {
           </button>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-white rounded-2xl shadow p-4 text-center">
             <p className="text-2xl font-bold text-blue-600">{formatHoras(horasHoy)}</p>
@@ -186,7 +186,6 @@ export default function CheckInOut({ employee }: Props) {
           </div>
         </div>
 
-        {/* Sales section */}
         <div className="bg-white rounded-2xl shadow p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-gray-700">Ventas del día</h3>
@@ -199,15 +198,15 @@ export default function CheckInOut({ employee }: Props) {
           {showSaleForm && (
             <div className="bg-gray-50 rounded-xl p-4 mb-3 space-y-3">
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Monto ($)</label>
+                <label className="text-xs font-medium text-gray-600 block mb-1">Monto ($)</label>
                 <input type="number" value={saleAmount} onChange={e => setSaleAmount(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
                   placeholder="0" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Descripción (opcional)</label>
+                <label className="text-xs font-medium text-gray-600 block mb-1">Descripción (opcional)</label>
                 <input type="text" value={saleDesc} onChange={e => setSaleDesc(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
                   placeholder="Producto vendido..." />
               </div>
               <button onClick={handleAddSale} disabled={savingSale}
@@ -235,7 +234,6 @@ export default function CheckInOut({ employee }: Props) {
           )}
         </div>
 
-        {/* WhatsApp share */}
         {hasCheckedIn && (
           <a href={`https://wa.me/?text=${encodeURIComponent(
             `📊 *Reporte ${employee.nombre}*\n📅 ${format(now, "d 'de' MMMM", { locale: es })}\n\n⏰ Entrada: ${timesheet?.check_in_time ? format(new Date(timesheet.check_in_time), 'HH:mm') : '-'}\n🏁 Salida: ${timesheet?.check_out_time ? format(new Date(timesheet.check_out_time), 'HH:mm') : 'En curso'}\n⏱ Horas: ${formatHoras(horasHoy)}\n💰 Ventas: $${totalVentas.toLocaleString('es-CO')}\n📍 ${employee.store}`
