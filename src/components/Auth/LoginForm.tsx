@@ -19,13 +19,12 @@ export default function LoginForm() {
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        shouldCreateUser: false,
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
     if (otpError) {
-      setError('No se pudo enviar el código. Verifica que el email esté registrado.');
+      setError('Error: ' + otpError.message);
     } else {
       setStep('code');
     }
