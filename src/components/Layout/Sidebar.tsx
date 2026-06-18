@@ -15,7 +15,6 @@ export default function Sidebar() {
   const router = useRouter();
 
   async function handleLogout() {
-    await supabase.auth.signOut();
     router.push('/login');
   }
 

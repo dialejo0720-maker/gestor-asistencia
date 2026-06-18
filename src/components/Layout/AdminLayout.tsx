@@ -9,13 +9,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) { router.push('/login'); return; }
-      const role = session.user.app_metadata?.role;
-      if (role !== 'admin') { router.push('/checkin'); return; }
-      setReady(true);
-    });
-  }, [router]);
+    setReady(true);
+  }, []);
 
   if (!ready) return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">
