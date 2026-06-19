@@ -11,7 +11,13 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-type Summary = ReturnType<typeof calculateMonthlyHours> & { entrada_hoy?: string; salida_hoy?: string };
+type Summary = ReturnType<typeof calculateMonthlyHours> & {
+  entrada_hoy?: string;
+  salida_hoy?: string;
+  lat?: number;
+  lng?: number;
+  direccion?: string;
+};
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
@@ -52,6 +58,12 @@ export default function AttendanceTable() {
         ...monthly,
         entrada_hoy: todayTS?.check_in_time ? format(new Date(todayTS.check_in_time), 'HH:mm') : undefined,
         salida_hoy: todayTS?.check_out_time ? format(new Date(todayTS.check_out_time), 'HH:mm') : undefined,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        lat: (todayTS as any)?.ubicacion_lat,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        lng: (todayTS as any)?.ubicacion_lng,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        direccion: (todayTS as any)?.ubicacion_direccion,
       };
     }
     setSummaries(newSummaries);
@@ -144,6 +156,14 @@ export default function AttendanceTable() {
                       <div className="text-gray-400">Horas mes</div>
                     </div>
                   </div>
+                  {s?.lat && s?.lng && (
+                    <a href={`https://www.google.com/maps?q=${s.lat},${s.lng}`} target="_blank"
+                      className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-2 mb-2 hover:bg-blue-100 transition">
+                      <span>📍</span>
+                      <span className="truncate">{s.direccion || `${s.lat?.toFixed(4)}, ${s.lng?.toFixed(4)}`}</span>
+                      <span className="ml-auto shrink-0 font-medium">Ver mapa →</span>
+                    </a>
+                  )}
                   <button onClick={() => router.push(`/empleado/${emp.id}?mes=${selectedMes}&ano=${selectedAno}`)}
                     className="w-full text-center text-blue-600 text-xs font-medium py-1.5 border border-blue-200 rounded-lg hover:bg-blue-50 transition">
                     Ver detalle →
@@ -164,8 +184,8 @@ export default function AttendanceTable() {
                     <th className="text-left px-4 py-3 font-medium text-gray-600">Tienda</th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Entrada Hoy</th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Salida Hoy</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Ubicación</th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Horas Mes</th>
-                    <th className="text-center px-4 py-3 font-medium text-gray-600">Extras</th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Asistencia</th>
                     <th className="text-center px-4 py-3 font-medium text-gray-600">Acción</th>
                   </tr>
@@ -193,8 +213,14 @@ export default function AttendanceTable() {
                         <td className="px-4 py-3 text-center font-medium">
                           {s ? formatHoras(s.horasNormales + s.horasExtras + s.horasFestivas) : '—'}
                         </td>
-                        <td className="px-4 py-3 text-center">
-                          {s?.horasExtras ? <span className="text-orange-600 font-medium">{formatHoras(s.horasExtras)}</span> : '0h'}
+                        <td className="px-4 py-3">
+                          {s?.lat && s?.lng ? (
+                            <a href={`https://www.google.com/maps?q=${s.lat},${s.lng}`} target="_blank"
+                              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline">
+                              <span>📍</span>
+                              <span className="truncate max-w-[160px]">{s.direccion || `${s.lat?.toFixed(4)}, ${s.lng?.toFixed(4)}`}</span>
+                            </a>
+                          ) : <span className="text-gray-300 text-xs">Sin ubicación</span>}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className={`text-xs font-medium px-2 py-1 rounded-full ${pct >= 90 ? 'bg-green-100 text-green-700' : pct >= 70 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
