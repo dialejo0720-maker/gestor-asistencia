@@ -247,7 +247,7 @@ export default function CheckInOut({ employee }: Props) {
         </div>
 
         {/* WhatsApp share */}
-        {hasCheckedIn && (
+        {(hasCheckedIn || todaySales.length > 0) && (
           <a href={`https://wa.me/?text=${encodeURIComponent(buildWhatsAppReport())}`}
             target="_blank"
             className="flex items-center justify-center gap-2 w-full bg-green-500 hover:bg-green-600 text-white py-3.5 rounded-2xl font-medium transition">
