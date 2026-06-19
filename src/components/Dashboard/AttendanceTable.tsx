@@ -4,12 +4,6 @@ import { format } from 'date-fns';
 import { Employee, Timesheet, Schedule } from '@/lib/types';
 import { calculateMonthlyHours, formatHoras } from '@/lib/calculateHours';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 type Summary = ReturnType<typeof calculateMonthlyHours> & {
   entrada_hoy?: string;
@@ -43,15 +37,13 @@ export default function AttendanceTable() {
     const firstDay = `${selectedAno}-${String(selectedMes).padStart(2,'0')}-01`;
     const lastDay = format(new Date(selectedAno, selectedMes, 0), 'yyyy-MM-dd');
 
-    const [{ data: timesheets }, { data: schedules }] = await Promise.all([
-      supabase.from('timesheets').select('*').in('employee_id', active.map((e: Employee) => e.id)).gte('fecha', firstDay).lte('fecha', lastDay),
-      supabase.from('schedules').select('*').in('employee_id', active.map((e: Employee) => e.id)).gte('fecha', firstDay).lte('fecha', lastDay),
-    ]);
+    const tsRes = await fetch(`/api/timesheets?mes=${selectedMes}&ano=${selectedAno}`);
+    const { timesheets, schedules } = await tsRes.json();
 
     const newSummaries: Record<string, Summary> = {};
     for (const emp of active) {
       const empTS = (timesheets || []).filter((t: Timesheet) => t.employee_id === emp.id);
-      const empSch = (schedules || []).filter((s: Schedule) => s.employee_id === emp.id);
+      const empSch = (schedules as Schedule[] || []).filter((s: Schedule) => s.employee_id === emp.id);
       const monthly = calculateMonthlyHours(empTS, empSch);
       const todayTS = empTS.find((t: Timesheet) => t.fecha === today);
       newSummaries[emp.id] = {
